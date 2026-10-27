@@ -4,7 +4,7 @@
 > Powered by **Kokoro-82M** & **KittenTTS**, built with **React**, **Vite**, and **Capacitor**. Zero cloud APIs, zero subscriptions, complete privacy.
 
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Web-blue.svg)](https://github.com/yabets4/vox)
-[![License](https://img.shields.io/badge/License-Apache%202.0%20%2F%20MIT-green.svg)](https://github.com/yabets4/vox)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TTS Engine](https://img.shields.io/badge/TTS-Kokoro--82M%20%7C%20KittenTTS-orange.svg)](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX)
 [![Prebuilt APK](https://img.shields.io/badge/Download-VOX.apk%20(12.5%20MB)-success.svg)](VOX.apk)
 
