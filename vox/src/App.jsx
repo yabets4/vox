@@ -296,9 +296,10 @@ export default function App() {
     setPlayback({ state: 'preparing', idx: start, count: chunks.length });
     ensureAudio(s);   // created inside the tap, so autoplay rules stay happy
     try {
-      await ensureEngine();
-      if (!current.saved) pruneAudio(current.id, sig).catch(() => {});
       s.ready = await listAudio(sig);
+      /* a fully saved book needs no voice engine — it can play on any tier, offline */
+      if (s.ready.size < chunks.length) await ensureEngine();
+      if (!current.saved) pruneAudio(current.id, sig).catch(() => {});
     } catch (e) {
       stopSpeech();
       setEngine((en) => (engineRef.current ? en : { status: 'idle', label: '', pct: 0 }));
@@ -329,6 +330,7 @@ export default function App() {
           if (s.stop) break;
           if (s.ready.has(i)) continue;
           const t0 = performance.now();
+          await ensureEngine();   // already loaded unless a saved book lost a passage
           const out = await synthesize(chunks[i], pc);
           const secs = out.samples.length / out.rate;
           learnSpeed((performance.now() - t0) / 1000, secs, chunks[i].length);
@@ -497,17 +499,19 @@ export default function App() {
 
   /* "Play" from the library: start once the new book's text is in state */
   const pendingPlay = useRef(false);
+  const [playReq, setPlayReq] = useState(0);   // re-runs the effect below even when the book was already open
   const playBook = useCallback(async (id) => {
     await selectBook(id);
     go('player');
     pendingPlay.current = true;
+    setPlayReq((n) => n + 1);
   }, [selectBook, go]);
   useEffect(() => {
     if (pendingPlay.current && current && chunks.length) {
       pendingPlay.current = false;
       if (!(seq.current && seq.current.running)) startSpeaking();
     }
-  }, [current, chunks, startSpeaking]);
+  }, [current, chunks, startSpeaking, playReq]);
 
   const addAndOpen = useCallback(async (title, text, pages) => {
     const meta = await addBook({ title, text, pages, words: countWords(text), total: chunkForSpeech(text).length });

@@ -12,6 +12,12 @@ import { Capacitor } from '@capacitor/core';
 import { env } from '@huggingface/transformers';
 import { installModelCache, isCached } from './modelCache.js';
 import { loadKitten, KITTEN_MODEL_URL } from './kitten/engine.js';
+/* the runtime ships inside the app — transformers.js would fetch it from a CDN, which fails offline */
+import ortWasmUrl from '../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm?url';
+import ortMjsUrl from '../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs?url';
+if (env.backends && env.backends.onnx && env.backends.onnx.wasm) {
+  env.backends.onnx.wasm.wasmPaths = { wasm: ortWasmUrl, mjs: ortMjsUrl };
+}
 
 const MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX';
 
@@ -125,6 +131,7 @@ export function isModelSaved(tier) {
 /* ---------- loading ---------- */
 
 let active = null;   // { tier, promise } — one engine in memory at a time
+let ortStarted = false;
 
 /* onProgress({ pct, label, phase }) — phase: 'download' | 'load' | 'save' */
 export function loadEngine(tier, onProgress) {
@@ -132,6 +139,11 @@ export function loadEngine(tier, onProgress) {
   if (active) active.promise.then((e) => e.release && e.release()).catch(() => {});
   installModelCache();
   const t = TIERS[tier];
+  /* CPU tiers: run onnxruntime in its own worker so a 20 s passage doesn't freeze the screen.
+     Only possible before the runtime first starts, and not with WebGPU. */
+  const onnx = env.backends && env.backends.onnx;
+  if (!ortStarted && onnx && onnx.wasm) onnx.wasm.proxy = t.device === 'wasm';
+  ortStarted = true;
   const report = (saved, loaded, total) => {
     if (!onProgress || !total) return;
     const pct = (loaded / total) * 100;
