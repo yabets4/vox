@@ -6,10 +6,18 @@ import { modelReport } from '../lib/modelCache.js';
 
 const MB = 1e6;
 
-export default function Storage({ onBack, onClearBookAudio, onClearAllAudio, onDeleteModel, onResetAll }) {
+export default function Storage({ onBack, onClearBookAudio, onClearAllAudio, onDeleteModel, onResetAll, onRegisterBack }) {
   const [report, setReport] = useState(null);
   const [confirm, setConfirm] = useState(null);   // { title, body, label, run }
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!onRegisterBack) return;
+    return onRegisterBack(() => {
+      if (confirm) { setConfirm(null); return true; }
+      return false;
+    });
+  }, [onRegisterBack, confirm]);
+
 
   const load = useCallback(async () => {
     const [books, model, est] = await Promise.all([

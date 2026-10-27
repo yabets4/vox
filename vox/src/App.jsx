@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { App as CapApp } from '@capacitor/app';
 import { extractPdfText } from './lib/pdf.js';
 import {
   loadEngine, isModelSaved, synthesize, chunkForSpeech, encodeWav, DEFAULT_VOICE,
-  TIERS, resolveTier, deviceProfile, voicesFor, defaultVoice,
+  TIERS, resolveTier, deviceProfile, voicesFor, defaultVoice, unloadEngine, lanes,
 } from './lib/tts.js';
 import { saveAudio } from './lib/save.js';
 import {
@@ -64,22 +65,96 @@ const errMsg = (e) => (e && e.message ? e.message : String(e));
 const countWords = (t) => (t.match(/\S+/g) || []).length;
 
 export default function App() {
-  /* ---------- navigation ---------- */
-  const [tab, setTab] = useState('library');
+  /* ---------- navigation & hardware back button ---------- */
+  const [history, setHistory] = useState(['library']);
+  const historyRef = useRef(history);
+  historyRef.current = history;
+  const tab = history[history.length - 1] || 'library';
+
+  const backInterceptors = useRef([]);
+  const registerBack = useCallback((fn) => {
+    backInterceptors.current.unshift(fn);
+    return () => {
+      backInterceptors.current = backInterceptors.current.filter((f) => f !== fn);
+    };
+  }, []);
+
   const go = useCallback((t) => {
-    setTab((cur) => {
-      if (cur !== t) { try { history.pushState({ tab: t }, ''); } catch { /* sandboxed */ } }
-      return t;
-    });
+    const cur = historyRef.current;
+    if (cur[cur.length - 1] === t) return;
+    const next = t === 'library' ? ['library'] : [...cur, t];
+    historyRef.current = next;
+    setHistory(next);
+    try { window.history.pushState({ tab: t }, ''); } catch { /* sandboxed */ }
     window.scrollTo(0, 0);
   }, []);
-  useEffect(() => {
-    try { history.replaceState({ tab: 'library' }, ''); } catch { /* sandboxed */ }
-    /* Android back button walks back through tabs */
-    const onPop = (e) => setTab((e.state && e.state.tab) || 'library');
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+
+  const goBack = useCallback(() => {
+    // 1. Check registered modal/sheet interceptors
+    for (const fn of backInterceptors.current) {
+      try {
+        if (fn()) return true;
+      } catch { /* continue */ }
+    }
+
+    // 2. Pop navigation stack
+    const cur = historyRef.current;
+    if (cur.length > 1) {
+      const next = cur.slice(0, -1);
+      historyRef.current = next;
+      setHistory(next);
+      window.scrollTo(0, 0);
+      return true;
+    }
+
+    if (cur[0] !== 'library') {
+      const next = ['library'];
+      historyRef.current = next;
+      setHistory(next);
+      window.scrollTo(0, 0);
+      return true;
+    }
+
+    return false;
   }, []);
+
+  useEffect(() => {
+    try { window.history.replaceState({ tab: 'library' }, ''); } catch { /* sandboxed */ }
+
+    let backListener;
+    try {
+      CapApp.addListener('backButton', () => {
+        const handled = goBack();
+        if (!handled) {
+          CapApp.exitApp().catch(() => {});
+        }
+      }).then((handle) => {
+        backListener = handle;
+      }).catch(() => {});
+    } catch { /* not native */ }
+
+    const onPop = (e) => {
+      const targetTab = (e.state && e.state.tab) || 'library';
+      setHistory((cur) => {
+        if (cur[cur.length - 1] === targetTab) return cur;
+        if (cur.includes(targetTab)) {
+          const idx = cur.lastIndexOf(targetTab);
+          const next = cur.slice(0, idx + 1);
+          historyRef.current = next;
+          return next;
+        }
+        const next = [...cur, targetTab];
+        historyRef.current = next;
+        return next;
+      });
+    };
+    window.addEventListener('popstate', onPop);
+
+    return () => {
+      if (backListener && backListener.remove) backListener.remove();
+      window.removeEventListener('popstate', onPop);
+    };
+  }, [goBack]);
 
   /* ---------- library ---------- */
   const [books, setBooks] = useState([]);
@@ -188,6 +263,7 @@ export default function App() {
   /* ---------- debug / test hooks (harmless in production) ---------- */
   useEffect(() => {
     window.__vox = {
+      synth: (text, v) => synthesize(text, { voice: v || voice, speed: 1 }),
       state: () => ({
         engine: engineRef.current, playback, tab, currentId,
         readyAhead, rtf: perf.rtf, tier, tierChoice, profile, prep, queued: prepQueue.current,
@@ -323,21 +399,30 @@ export default function App() {
     const publish = () => setReadyAhead(Math.round(aheadFrom(s.idx)));
 
     /* producer — keeps making audio ahead of the playhead and saves it; runs while paused too */
+    /* several lanes — one per engine worker — make passages side by side, in order of need */
     (async () => {
-      try {
-        for (let i = start; i < chunks.length && !s.stop; i++) {
+      let next = start;
+      const lane = async (once) => {
+        while (!s.stop) {
+          const i = next++;
+          if (i >= chunks.length) return;
           while (!s.stop && aheadFrom(s.idx) > MAX_AHEAD_SEC) await sleep(1000);
-          if (s.stop) break;
+          if (s.stop) return;
           if (s.ready.has(i)) continue;
-          const t0 = performance.now();
           await ensureEngine();   // already loaded unless a saved book lost a passage
+          const t0 = performance.now();
           const out = await synthesize(chunks[i], pc);
           const secs = out.samples.length / out.rate;
-          learnSpeed((performance.now() - t0) / 1000, secs, chunks[i].length);
+          learnSpeed((performance.now() - t0) / 1000 / lanes(), secs, chunks[i].length);
           await putAudio(sig + i, out);      // keep it even if the user just skipped away
           s.ready.set(i, secs);
           publish();
+          if (once) return;
         }
+      };
+      try {
+        if (!s.ready.has(start)) await lane(true);   // first passage alone — loads the engine once
+        await Promise.all(Array.from({ length: lanes() }, () => lane(false)));
       } catch (e) {
         s.failed = e;
       }
@@ -593,10 +678,12 @@ export default function App() {
 
   const deleteModel = useCallback(async () => {
     stopIfPlaying();
+    if (prepRef.current) prepRef.current.stop = true;
     await clearModel();
-    setEngine((e) => ({ ...e, saved: false }));   // still in memory until the app closes
-    if (tier) isModelSaved(tier).then((saved) => setEngine((e) => ({ ...e, saved })));
-  }, [stopIfPlaying, tier]);
+    unloadEngine();            // otherwise the app still thinks the voice is ready and won't download
+    engineRef.current = null;
+    setEngine({ status: 'idle', label: '', pct: 0, saved: false });
+  }, [stopIfPlaying]);
 
   const resetAll = useCallback(async () => {
     stopIfPlaying();
@@ -610,7 +697,9 @@ export default function App() {
     setBooks([]);
     setCurrentId(null);
     setCurrentText('');
-    setEngine((e) => ({ ...e, saved: false }));
+    unloadEngine();
+    engineRef.current = null;
+    setEngine({ status: 'idle', label: '', pct: 0, saved: false });
     setTierChoice('auto');
     go('library');
   }, [stopIfPlaying, go]);
@@ -667,22 +756,28 @@ export default function App() {
         for (; s.ready.has(k); k++) t += s.ready.get(k);
         return k < s.total && t < BUFFER_TARGET;
       };
-      for (let i = 0; i < list.length && !job.stop; i++) {
-        if (ready.has(i)) continue;
-        while (!job.stop && yieldToPlayer()) await sleep(1000);
-        if (job.stop) break;
-        const live = seq.current && seq.current.sig === sig ? seq.current : null;
-        if (live && live.ready.has(i)) { ready.set(i, live.ready.get(i)); show(); continue; }
-        const t0 = performance.now();
-        const out = await synthesize(list[i], pc);
-        const secs = out.samples.length / out.rate;
-        learnSpeed((performance.now() - t0) / 1000, secs, list[i].length);
-        await putAudio(sig + i, out);
-        ready.set(i, secs);
-        if (seq.current && seq.current.sig === sig) seq.current.ready.set(i, secs);   // the player can use it now
-        show();
-        if (ready.size % 10 === 0) mark(ready.size, false);
-      }
+      let next = 0;
+      const lane = async () => {
+        while (!job.stop) {
+          const i = next++;
+          if (i >= list.length) return;
+          if (ready.has(i)) continue;
+          while (!job.stop && yieldToPlayer()) await sleep(1000);
+          if (job.stop) return;
+          const live = seq.current && seq.current.sig === sig ? seq.current : null;
+          if (live && live.ready.has(i)) { ready.set(i, live.ready.get(i)); show(); continue; }
+          const t0 = performance.now();
+          const out = await synthesize(list[i], pc);
+          const secs = out.samples.length / out.rate;
+          learnSpeed((performance.now() - t0) / 1000 / lanes(), secs, list[i].length);
+          await putAudio(sig + i, out);
+          ready.set(i, secs);
+          if (seq.current && seq.current.sig === sig) seq.current.ready.set(i, secs);   // the player can use it now
+          show();
+          if (ready.size % 10 === 0) mark(ready.size, false);
+        }
+      };
+      await Promise.all(Array.from({ length: lanes() }, lane));   // one lane per engine worker
       mark(ready.size, ready.size >= list.length);
     } catch (e) {
       setError(`Could not save “${book.title}”: ${errMsg(e)}`);
@@ -721,6 +816,7 @@ export default function App() {
       <main key={tab} className="view">
         {tab === 'library' && (
           <Library
+            onRegisterBack={registerBack}
             books={books} current={current} loaded={loaded} importing={importing}
             onOpen={openBook} onPlay={playBook} onImportFile={importFile} onPaste={pasteBook} onDelete={removeBook}
             prep={prep} queued={queued} onSave={toggleSave} onUnsave={clearBookAudio}
@@ -728,10 +824,11 @@ export default function App() {
         )}
         {tab === 'player' && (
           <Player
+            onRegisterBack={registerBack}
             book={current} chunks={chunks} curIdx={curIdx} playback={playback} engine={engine}
             readyAhead={readyAhead} rtf={perf.known ? perf.rtf : null} speed={speed} voice={current ? playChoice(current).voice : voice} seqRef={seq}
             onMain={togglePause} onSkip={skip} onSeek={seekTo} onStop={stopSpeech} onSave={saveWav}
-            onSpeed={setSpeed} onLibrary={() => go('library')} onVoice={() => go('settings')}
+            onSpeed={setSpeed} onLibrary={goBack} onVoice={() => go('settings')}
           />
         )}
         {tab === 'settings' && (
@@ -744,7 +841,8 @@ export default function App() {
         )}
         {tab === 'storage' && (
           <Storage
-            onBack={() => go('settings')} onClearBookAudio={clearBookAudio} onClearAllAudio={clearAudioAll}
+            onBack={goBack}
+            onRegisterBack={registerBack} onClearBookAudio={clearBookAudio} onClearAllAudio={clearAudioAll}
             onDeleteModel={deleteModel} onResetAll={resetAll}
           />
         )}

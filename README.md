@@ -21,10 +21,12 @@
   - Intelligent PDF text extraction powered by `pdfjs-dist`.
   - Automatic removal of repeated running headers, footers, and page numbers.
   - Re-flow and hyphenation restoration across line wraps and page boundaries for fluid, uninterrupted reading.
-- **🎧 Seamless Streaming & Predictive Buffering**:
+- **🎧 Seamless Streaming & Multi-Lane Buffering**:
+  - **Dedicated Worker Pool**: Synthesis runs completely off the main UI thread via `tts.worker.js`, dynamically scaling from 1 to 6 parallel worker lanes based on device RAM and CPU cores.
+  - **Cross-Origin Isolation on Android**: Native headers inject COOP/COEP in `MainActivity.java`, unlocking `SharedArrayBuffer` for true multithreaded WASM execution.
   - Intelligent lookahead synthesis buffer (up to 45 minutes ahead, pruned behind playhead).
   - Adaptive runtime speed learning (tracks real-time factor `RTF` and seconds-per-character `SPC` per device tier).
-  - Background playback, mini-player controls, and sleep-safe audio scheduling.
+  - Background playback, mini-player controls, modal-aware back-button handling, and sleep-safe audio scheduling.
 - **💾 Fail-Proof Persistent Offline Storage**:
   - Custom chunked file storage on Android via Capacitor Filesystem (bypasses browser Cache API 100MB limits).
   - IndexedDB Blob caching with persistent storage requests in desktop browsers.
@@ -195,7 +197,8 @@ transcribe/
     │   │   ├── modelCache.js    # Resilient chunked caching for ONNX weights
     │   │   ├── pdf.js           # Layout-aware PDF parser, stripper & text reflower
     │   │   ├── save.js          # Audio file persistence & WAV export helpers
-    │   │   └── tts.js           # Multi-tier voice synthesizer & device profiler
+    │   │   ├── tts.js           # Multi-tier voice synthesizer, worker pool & device profiler
+    │   │   └── tts.worker.js    # Dedicated background worker for zero-jank neural inference
     │   └── pages/
     │       ├── Library.jsx      # Document shelf, import progress, & book management
     │       ├── Player.jsx       # Audio playback, speed, scrub, and reading view

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Cover, Icon, Sheet } from '../components/ui.jsx';
 import { voiceName as nameOf } from '../lib/tts.js';
 
@@ -6,7 +6,7 @@ const pct = (b) => (b.finished ? 1 : b.total ? Math.min(1, b.idx / b.total) : 0)
 
 export default function Library({
   books, current, loaded, importing, onOpen, onPlay, onImportFile, onPaste, onDelete,
-  prep, queued, onSave, onUnsave,
+  prep, queued, onSave, onUnsave, onRegisterBack,
 }) {
   /* where a book stands on "save for offline": saving | queued | saved | partial | none */
   const saveState = (b) => {
@@ -22,6 +22,16 @@ export default function Library({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [menuBook, setMenuBook] = useState(null);
   const [draft, setDraft] = useState({ title: '', text: '' });
+
+  useEffect(() => {
+    if (!onRegisterBack) return;
+    return onRegisterBack(() => {
+      if (menuBook) { setMenuBook(null); return true; }
+      if (pasteOpen) { setPasteOpen(false); return true; }
+      if (addOpen) { setAddOpen(false); return true; }
+      return false;
+    });
+  }, [onRegisterBack, menuBook, pasteOpen, addOpen]);
 
   const others = books.filter((b) => !current || b.id !== current.id);
   const pickFile = () => { setAddOpen(false); fileRef.current && fileRef.current.click(); };

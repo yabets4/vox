@@ -6,7 +6,6 @@
  * transformers.js already loaded, and keeps its files in VOX's model store (lib/modelCache.js).
  */
 import * as ort from 'onnxruntime-web';
-import { fetchModelFile } from '../modelCache.js';
 import { TextCleaner, basic_english_tokenize } from './text-cleaner.js';
 import { TextPreprocessor } from './preprocess.js';
 import { phonemize } from './phonemizer.js';
@@ -21,12 +20,13 @@ const SAMPLE_RATE = 24000;
 const AUDIO_TRIM = 5000;   // the model leaves a short tail of noise at the end of every clip
 const MAX_PIECE = 400;     // characters per inference — VOX passages (≤ 260) normally fit in one
 
-/* onProgress(loaded, total, fromDevice) covers the big .onnx file only */
-export async function loadKitten(onProgress) {
+/* fetchFile(url, onProgress) → ArrayBuffer, from storage or the network (tts.worker.js).
+   onProgress(loaded, total, fromDevice) covers the big .onnx file only */
+export async function loadKitten(fetchFile, onProgress) {
   const [modelBuf, voicesBuf, configBuf] = await Promise.all([
-    fetchModelFile(KITTEN_MODEL_URL, onProgress),
-    fetchModelFile(VOICES_URL),
-    fetchModelFile(CONFIG_URL),
+    fetchFile(KITTEN_MODEL_URL, onProgress),
+    fetchFile(VOICES_URL),
+    fetchFile(CONFIG_URL),
   ]);
   const config = JSON.parse(new TextDecoder().decode(configBuf));
   const session = await ort.InferenceSession.create(new Uint8Array(modelBuf), { executionProviders: ['wasm'] });

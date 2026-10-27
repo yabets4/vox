@@ -175,6 +175,33 @@ export async function fetchModelFile(url, onProgress) {
   return buf;
 }
 
+/*
+ * for the engine worker (lib/tts.worker.js), which can't reach Capacitor's file API:
+ *  locate → { blob, size } (browser) | { url, size } (phone file, served locally) | null
+ *  storeFile → saves an ArrayBuffer under the key
+ */
+export async function locateFile(key) {
+  installModelCache();
+  try {
+    if (native()) {
+      const path = fileFor(key);
+      const size = await nativeSize(path);
+      if (!size) return null;
+      const { uri } = await Filesystem.getUri({ path, directory: Directory.Data });
+      return { url: Capacitor.convertFileSrc(uri), size };
+    }
+    if (typeof indexedDB === 'undefined') return null;
+    const blob = await idbReq('readonly', (st) => st.get(key));
+    return blob ? { blob, size: blob.size } : null;
+  } catch { return null; }
+}
+
+export async function storeFile(key, buf) {
+  installModelCache();
+  const store = native() ? nativeCache : typeof indexedDB !== 'undefined' ? idbCache : null;
+  if (store) await store.put(key, new Response(buf));
+}
+
 /* ---------- storage report + cleanup ---------- */
 
 const prettyName = (name) => name.replace(/^[a-z0-9]+-/, '').replace(/^main__/, '').replace(/__/g, '/');

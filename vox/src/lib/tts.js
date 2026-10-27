@@ -7,18 +7,11 @@
  *
  * Each downloads once and stays on the device (lib/modelCache.js) → offline after that.
  */
-import { KokoroTTS } from 'kokoro-js';
 import { Capacitor } from '@capacitor/core';
-import { env } from '@huggingface/transformers';
-import { installModelCache, isCached } from './modelCache.js';
-import { loadKitten, KITTEN_MODEL_URL } from './kitten/engine.js';
-/* the runtime ships inside the app — transformers.js would fetch it from a CDN, which fails offline */
-import ortWasmUrl from '../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm?url';
-import ortMjsUrl from '../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs?url';
-if (env.backends && env.backends.onnx && env.backends.onnx.wasm) {
-  env.backends.onnx.wasm.wasmPaths = { wasm: ortWasmUrl, mjs: ortMjsUrl };
-}
+import { installModelCache, isCached, locateFile, storeFile } from './modelCache.js';
 
+/* the voice engines themselves run in tts.worker.js — this file is the screen-side half */
+const KITTEN_MODEL_URL = 'https://huggingface.co/KittenML/kitten-tts-nano-0.8-fp32/resolve/main/kitten_tts_nano_v0_8.onnx';
 const MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX';
 
 /* Kokoro: curated from the official quality grades — only B- or better. */
@@ -128,75 +121,156 @@ export function isModelSaved(tier) {
   return isCached(modelUrl(tier));
 }
 
-/* ---------- loading ---------- */
+/* ---------- loading: everything heavy happens in workers ---------- */
+/*
+ * A pool of engine workers, one CPU core each, each with its own copy of the model. Several
+ * passages are made at once (see lanes()), and the screen's thread never runs the model.
+ * (One worker with several onnxruntime threads would be neater, but those threads never start
+ *  inside a worker in this setup — the load just hangs.)
+ */
 
-let active = null;   // { tier, promise } — one engine in memory at a time
-let ortStarted = false;
+let pool = [];       // [{ w, busy }]
+let seqId = 0;
+const pending = new Map();   // id → { resolve, reject, onProgress, slot }
+
+function spawn() {
+  const slot = { w: new Worker(new URL('./tts.worker.js', import.meta.url), { type: 'module' }), busy: 0 };
+  slot.w.onmessage = async (e) => {
+    const m = e.data;
+    if (m.type === 'cache') {   // the worker asks for / hands over a model file
+      let value = null, error = null;
+      try {
+        value = m.op === 'locate' ? await locateFile(m.key) : await storeFile(m.key, m.buf);
+      } catch (err) { error = (err && err.message) || String(err); }
+      slot.w.postMessage({ type: 'cache-reply', id: m.id, value: value || null, error });
+      return;
+    }
+    const p = pending.get(m.id);
+    if (!p) return;
+    if (m.type === 'progress') { if (p.onProgress) p.onProgress(m); return; }
+    pending.delete(m.id);
+    slot.busy--;
+    m.ok ? p.resolve(m) : p.reject(new Error(m.error));
+  };
+  slot.w.onerror = (e) => {
+    const err = new Error('voice engine crashed: ' + (e.message || 'unknown'));
+    for (const [id, p] of pending) if (p.slot === slot) { pending.delete(id); p.reject(err); }
+    killPool();   // start clean next time
+  };
+  return slot;
+}
+
+function killPool() {
+  for (const s of pool) s.w.terminate();
+  pool = [];
+  active = null;
+}
+
+function call(slot, msg, onProgress) {
+  const id = ++seqId;
+  slot.busy++;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject, onProgress, slot });
+    slot.w.postMessage({ ...msg, id });
+  });
+}
+
+let active = null;   // { tier, promise, size } — one tier in memory at a time
+
+/* how many passages can be made at once right now (the producers run this many lanes) */
+export const lanes = () => (active ? active.size : 1);
+
+/* drop the engines from memory (their files were deleted) — the next load downloads again */
+export function unloadEngine() {
+  killPool();
+}
+
+/*
+ * how many cores to give the voice. A page can't read CPU load, so measure it: run one tiny
+ * busy-loop worker per core at the same time and see how many keep their solo speed. A core that
+ * is busy (or a slow "little" core) falls behind. All idle → use them all; otherwise the idle
+ * ones, never fewer than 3. Low battery → 3. Takes ~0.5 s, once per launch.
+ */
+let probed = null;
+export const coreProbe = () => probed;   // { cores, idle, threads } for Settings
+async function pickThreads() {
+  const cores = navigator.hardwareConcurrency || 4;
+  let idle = cores;
+  try { idle = await idleCores(cores); } catch { idle = 3; }
+  let n = idle >= cores ? cores : Math.max(3, idle);
+  try {
+    const b = navigator.getBattery ? await navigator.getBattery() : null;
+    if (b && !b.charging && b.level < 0.2) n = 3;
+  } catch { /* no battery info */ }
+  n = Math.min(n, cores);
+  probed = { cores, idle, threads: n };
+  return n;
+}
+
+function spin(ms) {
+  const src = `onmessage=(e)=>{const end=performance.now()+e.data;let n=0,x=0;` +
+    `while(performance.now()<end){for(let i=0;i<2000;i++)x+=Math.sqrt(i*n);n++}postMessage(n+(x?0:0))}`;
+  const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+  return (count) => Promise.all(Array.from({ length: count }, () => new Promise((resolve, reject) => {
+    const w = new Worker(url);
+    w.onmessage = (e) => { resolve(e.data); w.terminate(); };
+    w.onerror = (e) => { reject(e); w.terminate(); };
+    w.postMessage(ms);
+  }))).finally(() => URL.revokeObjectURL(url));
+}
+
+async function idleCores(cores) {
+  const [solo] = await spin(150)(1);
+  const all = await spin(250)(cores);
+  const full = solo * (250 / 150);
+  return all.filter((n) => n >= full * 0.7).length;
+}
 
 /* onProgress({ pct, label, phase }) — phase: 'download' | 'load' | 'save' */
 export function loadEngine(tier, onProgress) {
   if (active && active.tier === tier) return active.promise;
-  if (active) active.promise.then((e) => e.release && e.release()).catch(() => {});
+  killPool();
   installModelCache();
   const t = TIERS[tier];
-  /* CPU tiers: run onnxruntime in its own worker so a 20 s passage doesn't freeze the screen.
-     Only possible before the runtime first starts, and not with WebGPU. */
-  const onnx = env.backends && env.backends.onnx;
-  if (!ortStarted && onnx && onnx.wasm) onnx.wasm.proxy = t.device === 'wasm';
-  ortStarted = true;
-  const report = (saved, loaded, total) => {
-    if (!onProgress || !total) return;
-    const pct = (loaded / total) * 100;
-    onProgress(saved
-      ? { phase: 'load', pct, label: 'from this phone' }
-      : pct >= 100
-        ? { phase: 'save', pct: 100, label: 'saving for offline use…' }
-        : { phase: 'download', pct, label: `${(loaded / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} MB` });
-  };
-
-  const promise = isModelSaved(tier).then((saved) => {
-    if (t.engine === 'kitten') return loadKitten((l, tot, dev) => report(saved || dev, l, tot));
-    if (t.device === 'webgpu' && env.backends && env.backends.onnx && env.backends.onnx.webgpu) {
-      /* laptops with two GPUs: ask for the discrete one (Windows Chrome also needs the OS setting) */
-      env.backends.onnx.webgpu.powerPreference = 'high-performance';
-    }
-    return KokoroTTS.from_pretrained(MODEL_ID, {
-      dtype: t.dtype,
-      device: t.device,
-      progress_callback: (p) => {
-        if (!/\.onnx$/.test(p.file || '')) return;   // the json files are tiny noise
-        if (p.status === 'progress') report(saved, p.loaded, p.total);
-      },
-    });
-  }).then(async (tts) => {
-    /* one tiny warm-up run: GPU shader compile / WASM JIT happens here, not inside the first
-       real passage — so the device-speed measurement isn't skewed and playback starts sooner */
-    if (onProgress) onProgress({ phase: 'load', pct: 100, label: 'warming up' });
-    try { await tts.generate('Ready.', { voice: engineVoice(defaultVoice(tier)) }); } catch { /* voice file offline — fine */ }
-    return tts;
+  const promise = Promise.all([pickThreads(), isModelSaved(tier), deviceProfile()]).then(async ([cores, saved, prof]) => {
+    /* GPU tier: one worker (the GPU is the parallel part). CPU tiers: one per usable core,
+       held back on small-memory phones since every worker keeps its own model copy */
+    const mem = prof.memGB || (prof.phone ? 4 : 8);
+    const size = t.device === 'webgpu' ? 1 : Math.max(1, Math.min(cores, mem >= 6 ? 6 : mem >= 4 ? 3 : 1));
+    if (probed) probed.threads = size;
+    const msg = { type: 'load', tier, kind: t.engine, device: t.device, dtype: t.dtype, threads: 1 };
+    /* the first worker downloads + stores the model; the rest then load it from the device */
+    const first = spawn();
+    pool = [first];
+    await call(first, { ...msg, saved }, onProgress);
+    const rest = Array.from({ length: size - 1 }, spawn);
+    pool.push(...rest);
+    if (onProgress && rest.length) onProgress({ phase: 'load', pct: 100, label: `starting ${size} voice workers` });
+    await Promise.all(rest.map((s) => call(s, { ...msg, saved: true }).catch(() => {
+      s.w.terminate();
+      pool = pool.filter((x) => x !== s);   // fewer lanes is fine
+    })));
+    if (active && active.promise === promise) active.size = pool.length;
+    return { tier };
   }).catch((err) => {
-    if (active && active.promise === promise) active = null;   // allow retry after a failed download
+    if (active && active.promise === promise) killPool();   // allow retry after a failed download
     throw err;
   });
-  active = { tier, promise };
+  active = { tier, promise, size: 1 };
   return promise;
 }
 
 const engineVoice = (id) => id.replace(/^kitten_/, '');
 
-/* one inference at a time — a skip/restart may fire while the old producer is mid-chunk */
-let synthLock = Promise.resolve();
-
 export async function synthesize(text, { voice, speed, onProgress }) {
   if (!active) throw new Error('voice engine not loaded');
-  const tts = await active.promise;
-  const run = synthLock.then(() => tts.generate(text, { voice: engineVoice(voice), speed }));
-  synthLock = run.catch(() => {});
-  const audio = await run;
+  await active.promise;
+  if (!pool.length) throw new Error('voice engine not loaded');
+  const slot = pool.reduce((a, b) => (b.busy < a.busy ? b : a));   // least busy worker
+  /* Int16 — half the RAM, and a phone holds many chunks for skip-back + export */
+  const r = await call(slot, { type: 'synth', text, voice: engineVoice(voice), speed });
   onProgress && onProgress();
-  /* { audio: Float32Array, sampling_rate } — 24 kHz from both engines.
-     Kept as Int16 — half the RAM, and a phone holds many chunks for skip-back + export. */
-  return { samples: toInt16(audio.audio), rate: audio.sampling_rate };
+  return { samples: r.samples, rate: r.rate };
 }
 
 export function toInt16(f32) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../components/ui.jsx';
-import { TIERS, TIER_ORDER, enginePlan, isModelSaved, lighterTier, voicesFor } from '../lib/tts.js';
+import { TIERS, TIER_ORDER, enginePlan, isModelSaved, lighterTier, voicesFor, coreProbe } from '../lib/tts.js';
 
 export default function Settings({
   voice, onVoice, speed, onSpeed, engine, engineReady, onPreload, bookCount, rtf, onStorage,
@@ -89,6 +89,11 @@ export default function Settings({
         <div className="kv"><span>Model</span><b>{tier ? TIERS[tier].name : '…'}</b></div>
         <div className="kv"><span>Runs on</span><b>{tier ? enginePlan(tier) : '…'}</b></div>
         {profile && <div className="kv"><span>This device</span><b>{profile.memGB ? `${profile.memGB} GB · ` : ''}{profile.cores} cores</b></div>}
+        {coreProbe() && tier && TIERS[tier].device === 'wasm' && (
+          <div className="kv"><span>Cores used</span><b className={coreProbe().threads > 1 ? 'ok' : ''}>
+            {coreProbe().threads} of {coreProbe().cores} ({coreProbe().idle} idle at launch)
+          </b></div>
+        )}
         {gpu && <div className="kv"><span>Graphics chip</span><b className={/nvidia|amd/i.test(gpu) ? 'ok' : ''}>{gpu}</b></div>}
         <div className="kv"><span>Status</span><b className={engineReady ? 'ok' : ''}>
           {engineReady ? 'Loaded'

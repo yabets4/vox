@@ -6,11 +6,19 @@ const SPEEDS = [0.8, 0.9, 1, 1.1, 1.2, 1.35];
 
 export default function Player({
   book, chunks, curIdx, playback, engine, readyAhead, rtf, speed, voice, seqRef,
-  onMain, onSkip, onSeek, onStop, onSave, onSpeed, onLibrary, onVoice,
+  onMain, onSkip, onSeek, onStop, onSave, onSpeed, onLibrary, onVoice, onRegisterBack,
 }) {
   const listRef = useRef(null);
   const [showText, setShowText] = useState(false);   // cover ⇄ follow-along text, like lyrics
-  const [follow, setFollow] = useState(true);        // auto-scroll with the voice until the user scrolls
+  const [follow, setFollow] = useState(true);
+  useEffect(() => {
+    if (!onRegisterBack) return;
+    return onRegisterBack(() => {
+      if (showText) { setShowText(false); return true; }
+      return false;
+    });
+  }, [onRegisterBack, showText]);
+        // auto-scroll with the voice until the user scrolls
 
   /* keep the spoken passage centred — scrolls only the text box, never the page around it */
   const centreNow = (smooth) => {
