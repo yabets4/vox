@@ -1,7 +1,7 @@
 /*
- * vox/src/lib/kitten/engine.js — KittenTTS nano (int8, ~28 MB) for phones too slow for Kokoro.
+ * vox/src/lib/kitten/engine.js — KittenTTS nano (fp32, ~60 MB — on WASM it runs ~1.7× faster than the int8 build) for phones too slow for Kokoro.
  *
- * Model: KittenML/kitten-tts-nano-0.8-int8 (Apache-2.0). Text cleaning, phonemes and the symbol
+ * Model: KittenML/kitten-tts-nano-0.8-fp32 (Apache-2.0). Text cleaning, phonemes and the symbol
  * table are adapted from kitten-tts-js (see NOTICE). Runs on the same onnxruntime-web that
  * transformers.js already loaded, and keeps its files in VOX's model store (lib/modelCache.js).
  */
@@ -11,7 +11,7 @@ import { TextCleaner, basic_english_tokenize } from './text-cleaner.js';
 import { TextPreprocessor } from './preprocess.js';
 import { phonemize } from './phonemizer.js';
 
-export const KITTEN_REPO = 'KittenML/kitten-tts-nano-0.8-int8';
+export const KITTEN_REPO = 'KittenML/kitten-tts-nano-0.8-fp32';
 const BASE = `https://huggingface.co/${KITTEN_REPO}/resolve/main/`;
 export const KITTEN_MODEL_URL = BASE + 'kitten_tts_nano_v0_8.onnx';
 const VOICES_URL = BASE + 'voices.npz';

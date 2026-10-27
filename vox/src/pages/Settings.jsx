@@ -122,7 +122,7 @@ export default function Settings({
         <div className="kv"><span>Privacy</span><b>Everything stays on device</b></div>
         <p className="muted small">
           Voice models: <a href="https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX" target="_blank" rel="noreferrer">Kokoro-82M</a> and{' '}
-          <a href="https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8" target="_blank" rel="noreferrer">KittenTTS nano</a> (both Apache-2.0).
+          <a href="https://huggingface.co/KittenML/kitten-tts-nano-0.8-fp32" target="_blank" rel="noreferrer">KittenTTS nano</a> (both Apache-2.0).
           Scanned PDFs without a text layer can't be read yet.
         </p>
       </div>

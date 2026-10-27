@@ -213,7 +213,7 @@ function SaveButton({ st, onClick, wide }) {
   if (wide) {
     return (
       <button className={'pill savePill ' + st.kind} onClick={onClick} aria-label={label}>
-        {icon} {st.kind === 'saving' ? `${Math.round(st.pct * 100)}%` : st.kind === 'saved' ? 'Saved' : st.kind === 'queued' ? 'Queued' : 'Save'}
+        {icon} {st.kind === 'saving' ? `${Math.round(st.pct * 100)}%` : st.kind === 'saved' ? 'Saved' : st.kind === 'queued' ? 'Queued' : st.kind === 'partial' ? 'Continue' : 'Save'}
       </button>
     );
   }

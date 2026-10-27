@@ -3,7 +3,7 @@
  *
  *  studio   Kokoro-82M fp32 on the GPU (WebGPU)   326 MB  best voice, needs a real GPU
  *  standard Kokoro-82M q8 on the CPU (WASM)         92 MB  same voices, most phones
- *  lite     KittenTTS nano int8 on the CPU          28 MB  smaller + faster, plainer voice
+ *  lite     KittenTTS nano fp32 on the CPU          60 MB  smaller + faster, plainer voice
  *
  * Each downloads once and stays on the device (lib/modelCache.js) → offline after that.
  */
@@ -38,7 +38,7 @@ export const TIERS = {
               file: 'onnx/model.onnx', runsOn: 'Graphics chip (WebGPU)', blurb: 'Best voice. Needs a strong graphics chip.' },
   standard: { id: 'standard', name: 'Standard', engine: 'kokoro', device: 'wasm', dtype: 'q8', mb: 92,
               file: 'onnx/model_quantized.onnx', runsOn: 'Processor (WASM)', blurb: 'Same voices, compressed. Good for most phones.' },
-  lite:     { id: 'lite',     name: 'Lite',     engine: 'kitten', device: 'wasm', dtype: 'int8', mb: 28,
+  lite:     { id: 'lite',     name: 'Lite',     engine: 'kitten', device: 'wasm', dtype: 'fp32', mb: 60,
               runsOn: 'Processor (WASM)', blurb: 'Small and quick. Plainer voice, for older phones.' },
 };
 export const TIER_ORDER = ['studio', 'standard', 'lite'];

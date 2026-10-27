@@ -16,7 +16,7 @@
 - **⚡ Three Hardware-Calibrated Tiers**:
   - **Studio** (`Kokoro-82M fp32`, WebGPU, ~326 MB): State-of-the-art studio voice synthesis running on your graphics processor.
   - **Standard** (`Kokoro-82M q8`, WASM CPU, ~92 MB): High-quality 8-bit quantized Kokoro model running on any standard CPU.
-  - **Lite** (`KittenTTS nano int8`, WASM CPU, ~28 MB): Ultra-compact and speedy synthesis for older or resource-constrained devices.
+  - **Lite** (`KittenTTS nano fp32`, WASM CPU, ~60 MB): Ultra-compact and speedy synthesis for older or resource-constrained devices (optimized fp32 build runs ~1.7× faster on WASM).
 - **📄 Smart Document Pipeline**:
   - Intelligent PDF text extraction powered by `pdfjs-dist`.
   - Automatic removal of repeated running headers, footers, and page numbers.
@@ -126,8 +126,8 @@ The compiled APK will be at `android/app/build/outputs/apk/debug/app-debug.apk`.
 │                                                             │
 │   [Studio Tier]         [Standard Tier]       [Lite Tier]   │
 │   Kokoro-82M (fp32)     Kokoro-82M (q8)       KittenTTS     │
-│   WebGPU Acceleration   WASM Multithreaded    WASM Int8     │
-│   ~326 MB               ~92 MB                ~28 MB        │
+│   WebGPU Acceleration   WASM Multithreaded    WASM (fp32)   │
+│   ~326 MB               ~92 MB                ~60 MB        │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                                ▼
