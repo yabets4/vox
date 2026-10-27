@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VOX App Icon Concepts</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #f6efe2;
+      color: #2e2620;
+      padding: 32px 20px 60px;
+      line-height: 1.5;
+    }
+    .header {
+      max-width: 900px;
+      margin: 0 auto 36px;
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #2e2620;
+      margin-bottom: 8px;
+      font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    }
+    .header p {
+      font-size: 16px;
+      color: #726252;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 28px;
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #fffaf1;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 4px 18px rgba(90, 60, 30, 0.08);
+      border: 1px solid rgba(110, 80, 50, 0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .card h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #2e2620;
+      font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #c0643c;
+      color: #fff;
+    }
+    .badge.secondary {
+      background: #ece0ca;
+      color: #5a4c40;
+    }
+    .preview-box {
+      background: #ece0ca;
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    .large-preview {
+      width: 220px;
+      height: 220px;
+      border-radius: 46px;
+      overflow: hidden;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.22);
+      transition: transform 0.2s ease;
+    }
+    .large-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .scales {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      width: 100%;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(110, 80, 50, 0.2);
+    }
+    .scale-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #726252;
+      font-weight: 600;
+    }
+    .scale-item .icon-circle {
+      border-radius: 50%;
+      overflow: hidden;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+    }
+    .scale-item .icon-squircle {
+      border-radius: 22%;
+      overflow: hidden;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+    }
+    .scale-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .desc {
+      font-size: 14px;
+      color: #5a4c40;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>VOX App Icon Showcase</h1>
+    <p>Select your favorite icon design to replace the default Capacitor placeholder.</p>
+  </div>
+
+  <div class="grid">
+    <!-- Option 1 -->
+    <div class="card">
+      <div class="card-head">
+        <h2>Option 1: Terracotta Equalizer</h2>
+        <span class="badge">Recommended</span>
+      </div>
+      <div class="preview-box">
+        <div class="large-preview">
+          <img src="vox/public/icons/option1.jpg" alt="Option 1">
+        </div>
+        <div class="scales">
+          <div class="scale-item">
+            <div class="icon-circle" style="width: 56px; height: 56px;">
+              <img src="vox/public/icons/option1.jpg" alt="Option 1 56px">
+            </div>
+            <span>Android Circle (56px)</span>
+          </div>
+          <div class="scale-item">
+            <div class="icon-squircle" style="width: 56px; height: 56px;">
+              <img src="vox/public/icons/option1.jpg" alt="Option 1 Squircle">
+            </div>
+            <span>Android Squircle</span>
+          </div>
+          <div class="scale-item">
+            <div class="icon-squircle" style="width: 36px; height: 36px;">
+              <img src="vox/public/icons/option1.jpg" alt="Option 1 36px">
+            </div>
+            <span>Mini (36px)</span>
+          </div>
+        </div>
+      </div>
+      <p class="desc">
+        <strong>Vibrant & Ultra-Legible:</strong> Warm terracotta orange background with an open book in warm cream paper, integrating vertical equalizer audio bars. Outstanding clarity at small phone launcher sizes.
+      </p>
+    </div>
+
+    <!-- Option 2 -->
+    <div class="card">
+      <div class="card-head">
+        <h2>Option 2: Acoustic Folio</h2>
+        <span class="badge secondary">Classic</span>
+      </div>
+      <div class="preview-box">
+        <div class="large-preview">
+          <img src="vox/public/icons/option2.jpg" alt="Option 2">
+        </div>
+        <div class="scales">
+          <div class="scale-item">
+            <div class="icon-circle" style="width: 56px; height: 56px;">
+              <img src="vox/public/icons/option2.jpg" alt="Option 2 56px">
+            </div>
+            <span>Android Circle</span>
+          </div>
+          <div class="scale-item">
+            <div class="icon-squircle" style="width: 56px; height: 56px;">
+              <img src="vox/public/icons/option2.jpg" alt="Option 2 Squircle">
+            </div>
+            <span>Android Squircle</span>
+          </div>
+          <div class="scale-item">
+            <div class="icon-squircle" style="width: 36px; height: 36px;">
+              <img src="vox/public/icons/option2.jpg" alt="Option 2 36px">
+            </div>
+            <span>Mini (36px)</span>
+          </div>
+        </div>
+      </div>
+      <p class="desc">
+        <strong>Editorial Espresso & Tactile Pages:</strong> Deep espresso leather backdrop with open parchment pages whose upper crest flows into sculptural terracotta sound waves and acoustic rings.
+      </p>
+    </div>
+
+    <!-- Option 3 -->
+    <div class="card">
+      <div class="card-head">
+        <h2>Option 3: Resonant Radial Pages</h2>
+        <span class="badge secondary">Artistic</span>
+      </div>
+      <div class="preview-box">
+        <div class="large-preview">
+          <img src="vox/public/icons/option3.jpg" alt="Option 3">
+        </div>
+        <div class="scales">
+          <div class="scale-item">
+            <div class="icon-circle" style="width: 56px; height: 56px;">
+              <img src="vox/public/icons/option3.jpg" alt="Option 3 56px">
+            </div>
+            <span>Android Circle</span>
+          </div>
+          <div class="scale-item">
+            <div class="icon-squircle" style="width: 56px; height: 56px;">
+              <img src="vox/public/icons/option3.jpg" alt="Option 3 Squircle">
+            </div>
+            <span>Android Squircle</span>
+          </div>
+          <div class="scale-item">
+            <div class="icon-squircle" style="width: 36px; height: 36px;">
+              <img src="vox/public/icons/option3.jpg" alt="Option 3 36px">
+            </div>
+            <span>Mini (36px)</span>
+          </div>
+        </div>
+      </div>
+      <p class="desc">
+        <strong>Resonant Echo:</strong> Deep espresso leather tile with flipping book pages on the left that naturally radiate into concentric audio sound rings on the right, accented with a subtle copper edge rim.
+      </p>
+    </div>
+
+    <!-- Option 4 -->
+    <div class="card">
+      <div class="card-head">
+        <h2>Option 4: Waveform Crest</h2>
+        <span class="badge secondary">Modern</span>
+      </div>
+      <div class="preview-box">
+        <div class="large-preview">
+          <img src="vox/public/icons/option4.jpg" alt="Option 4">
+        </div>
+        <div class="scales">
+          <div class="scale-item">
+            <div class="icon-circle" style="width: 56px; height: 56px;">
+              <img src="vox/public/icons/option4.jpg" alt="Option 4 56px">
+            </div>
+            <span>Android Circle</span>
+          </div>
+          <div class="scale-item">
+            <div class="icon-squircle" style="width: 56px; height: 56px;">
+              <img src="vox/public/icons/option4.jpg" alt="Option 4 Squircle">
+            </div>
+            <span>Android Squircle</span>
+          </div>
+          <div class="scale-item">
+            <div class="icon-squircle" style="width: 36px; height: 36px;">
+              <img src="vox/public/icons/option4.jpg" alt="Option 4 36px">
+            </div>
+            <span>Mini (36px)</span>
+          </div>
+        </div>
+      </div>
+      <p class="desc">
+        <strong>Continuous Audio Stream:</strong> Warm terracotta background featuring a crisp open book with a continuous speech audio waveform flowing across both pages and extending beyond the margins.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

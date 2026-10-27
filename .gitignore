@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+vox/node_modules/
+/.pnp
+.pnp.js
+
+# Production & Build outputs
+dist/
+vox/dist/
+build/
+vox/build/
+
+# Android build outputs & local environment
+.gradle/
+vox/android/.gradle/
+vox/android/build/
+vox/android/app/build/
+vox/android/local.properties
+vox/android/capacitor-cordova-android-plugins/
+vox/android/app/src/main/assets/public/
+vox/android/app/src/main/assets/capacitor.config.json
+vox/android/app/src/main/assets/capacitor.plugins.json
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor / IDE settings
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+Thumbs.db
